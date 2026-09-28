@@ -1,0 +1,30 @@
+export const auth = {
+  'auth.signIn': 'Sign in',
+  'auth.fullName': 'Full name',
+  'auth.mobileNumber': 'Mobile number',
+  'auth.showPassword': 'Show password',
+  'auth.hidePassword': 'Hide password',
+
+  'auth.login.newHere': 'New to QatarUna?',
+  'auth.login.createAccount': 'Create a citizen account',
+  'auth.login.registeredTitle': 'Account created',
+  'auth.login.registeredBody': 'Sign in with the password you just chose.',
+  'auth.login.invalidTitle': 'Invalid credentials',
+  'auth.login.invalidBody': 'Check your email and password. Repeated failures lock the account for 15 minutes.',
+
+  'auth.demo.title': 'Seeded demo accounts',
+  'auth.demo.before': 'Fills the email. The password is the',
+  'auth.demo.after': 'user secret on the API.',
+  'auth.demo.water': 'Water',
+  'auth.demo.electricity': 'Electricity',
+
+  'auth.register.title': 'Create a citizen account',
+  'auth.register.alreadyRegistered': 'Already registered?',
+  'auth.register.nationalIdHint': 'As printed on your ID card.',
+  'auth.register.residency': 'Residency status',
+  'auth.register.nativeDescription': 'Eligible for the full catalogue, including subsidies and grants.',
+  'auth.register.residentDescription': 'Eligible for general public services.',
+  'auth.register.confirmPassword': 'Confirm password',
+  'auth.register.passwordMismatch': 'Passwords do not match.',
+  'auth.register.submit': 'Create account',
+} satisfies Record<string, string>
