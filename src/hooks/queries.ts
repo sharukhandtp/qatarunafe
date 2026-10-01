@@ -7,6 +7,7 @@ export const keys = {
   myRequests: ['my-requests'] as const,
   myRequestList: (q: object) => ['my-requests', 'list', q] as const,
   myRequest: (id: string) => ['my-requests', 'detail', id] as const,
+  payments: (id: string) => ['my-requests', 'payments', id] as const,
 
   cases: ['cases'] as const,
   caseQueue: (q: object) => ['cases', 'queue', q] as const,
@@ -23,6 +24,13 @@ export const keys = {
   user: (id: string) => ['users', 'detail', id] as const,
 
   audit: (q: object) => ['audit', q] as const,
+
+  notifications: ['notifications'] as const,
+  notificationList: (q: object) => ['notifications', 'list', q] as const,
+  unreadCount: ['notifications', 'unread'] as const,
+  notificationPreferences: ['notification-preferences'] as const,
+
+  reports: (kind: string, q: object) => ['reports', kind, q] as const,
 }
 
 /** Every ministry, for filter dropdowns. Four today; the page cap is the API maximum. */

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeftRight, Layers, ShieldBan } from 'lucide-react'
+import { ArrowLeftRight, KeyRound, Layers, ShieldBan } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { adminApi } from '../../api/endpoints'
@@ -11,6 +11,7 @@ import { Card, CardBody, CardHeader, DetailList } from '../../components/ui/Card
 import { Alert, EmptyState, ErrorAlert, ErrorState, PageLoader, Spinner } from '../../components/ui/Feedback'
 import { Select, Textarea } from '../../components/ui/Form'
 import { PageHeader, Table, Td, Th } from '../../components/ui/Layout'
+import { ConfirmDialog } from '../../components/ui/Modal'
 import { useToast } from '../../components/ui/Toast'
 import { keys, useAllMinistries } from '../../hooks/queries'
 import { t } from '../../i18n'
@@ -157,6 +158,44 @@ function StatusCard({ user }: { user: UserProfile }) {
   )
 }
 
+/** For a lost or replaced phone: the holder sets up an authenticator again at next sign-in. */
+function TwoStepAdminCard({ user }: { user: UserProfile }) {
+  const [confirming, setConfirming] = useState(false)
+  const reset = useAdminMutation(() => adminApi.resetMfa(user.id), t('mfa.admin.resetDone'), user.id)
+
+  return (
+    <Card>
+      <CardHeader
+        title={t('mfa.cardTitle')}
+        actions={
+          <Badge tone={user.mfaEnabled ? 'green' : 'neutral'} dot>
+            {user.mfaEnabled ? t('mfa.on') : t('mfa.off')}
+          </Badge>
+        }
+      />
+      <CardBody className="space-y-3">
+        <ErrorAlert error={reset.error} />
+        <p className="text-sm text-slate-600">{t(user.mfaEnabled ? 'mfa.admin.onBody' : 'mfa.admin.offBody')}</p>
+        {user.mfaEnabled && (
+          <Button variant="secondary" icon={KeyRound} onClick={() => setConfirming(true)}>
+            {t('mfa.admin.reset')}
+          </Button>
+        )}
+      </CardBody>
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={() => reset.mutate(undefined, { onSettled: () => setConfirming(false) })}
+        loading={reset.isPending}
+        tone="danger"
+        title={t('mfa.admin.confirmTitle', { name: user.fullName })}
+        description={t('mfa.admin.confirmBody')}
+        confirmLabel={t('mfa.admin.reset')}
+      />
+    </Card>
+  )
+}
+
 export function UserDetailPage() {
   const { userId = '' } = useParams()
   const { user: me } = useAuth()
@@ -276,6 +315,7 @@ export function UserDetailPage() {
             <>
               {employee && <PlacementCard key={`${u.employeeLevel}-${u.ministryId}`} user={u} />}
               <StatusCard key={u.accountStatus} user={u} />
+              <TwoStepAdminCard user={u} />
             </>
           )}
         </div>

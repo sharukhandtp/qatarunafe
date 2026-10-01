@@ -26,6 +26,14 @@ const MinistryDetailPage = page(() => import('./pages/admin/MinistryDetailPage')
 const UserDetailPage = page(() => import('./pages/admin/UserDetailPage'), 'UserDetailPage')
 const UsersPage = page(() => import('./pages/admin/UsersPage'), 'UsersPage')
 const LoginPage = page(() => import('./pages/auth/LoginPage'), 'LoginPage')
+const NationalIdentityCallbackPage = page(
+  () => import('./pages/auth/NationalIdentityCallbackPage'),
+  'NationalIdentityCallbackPage',
+)
+const VerifyCertificatePage = page(() => import('./pages/public/VerifyCertificatePage'), 'VerifyCertificatePage')
+const NotificationsPage = page(() => import('./pages/shared/NotificationsPage'), 'NotificationsPage')
+const DepartmentReportPage = page(() => import('./pages/reports/ReportPages'), 'DepartmentReportPage')
+const PortalOverviewPage = page(() => import('./pages/reports/ReportPages'), 'PortalOverviewPage')
 const RegisterPage = page(() => import('./pages/auth/RegisterPage'), 'RegisterPage')
 const CataloguePage = page(() => import('./pages/citizen/CataloguePage'), 'CataloguePage')
 const CitizenDashboard = page(() => import('./pages/citizen/CitizenDashboard'), 'CitizenDashboard')
@@ -55,6 +63,11 @@ function HomeRedirect() {
 const router = createBrowserRouter([
   { path: '/login', element: <GuestOnly>{suspended(<LoginPage />)}</GuestOnly> },
   { path: '/register', element: <GuestOnly>{suspended(<RegisterPage />)}</GuestOnly> },
+  // Where the national identity provider returns to. Not GuestOnly: it signs the user in itself.
+  { path: '/auth/callback', element: suspended(<NationalIdentityCallbackPage />) },
+  // Public certificate check - the target of the QR code, for people who are not portal users.
+  { path: '/verify', element: suspended(<VerifyCertificatePage />) },
+  { path: '/verify/:code', element: suspended(<VerifyCertificatePage />) },
   {
     element: (
       <RequireAuth>
@@ -77,6 +90,7 @@ const router = createBrowserRouter([
       { path: 'department/cases/:requestId', element: only(STAFF_OR_ADMIN, <CaseDetailPage />) },
       { path: 'directory', element: only(EMPLOYEE, <UsersPage mode="directory" />) },
       { path: 'audit', element: only(STAFF_OR_ADMIN, <AuditLogPage />) },
+      { path: 'reports', element: only(EMPLOYEE, <DepartmentReportPage />) },
 
       // Administration
       { path: 'admin', element: only(ADMIN, <AdminDashboard />) },
@@ -85,7 +99,10 @@ const router = createBrowserRouter([
       { path: 'admin/users', element: only(ADMIN, <UsersPage mode="admin" />) },
       { path: 'admin/users/new', element: only(ADMIN, <CreateEmployeePage />) },
       { path: 'admin/users/:userId', element: only(ADMIN, <UserDetailPage />) },
+      { path: 'admin/reports', element: only(ADMIN, <PortalOverviewPage />) },
+      { path: 'admin/reports/:ministryId', element: only(ADMIN, <DepartmentReportPage />) },
 
+      { path: 'notifications', element: <NotificationsPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'forbidden', element: <ForbiddenPage /> },
       { path: '*', element: <NotFoundPage /> },

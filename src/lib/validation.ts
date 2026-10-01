@@ -104,3 +104,11 @@ export function compact<T>(errors: Errors<T>): Errors<T> {
   }
   return out
 }
+
+// ---- Two-step sign-in ----------------------------------------------------------
+
+/** Strips the spaces people type when copying "123 456". */
+export const cleanCode = (value: string) => value.replace(/\s+/g, '')
+
+export const validCode = (value: string) =>
+  /^\d{6,8}$/.test(cleanCode(value)) ? undefined : t('mfa.codeInvalid')

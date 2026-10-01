@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clock, FileText, Save, Send, ShieldCheck, X } from 'lucide-react'
+import { Clock, CreditCard, FileText, Receipt, Save, Send, ShieldCheck, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { errorMessage } from '../../api/client'
@@ -18,7 +18,8 @@ import { useToast } from '../../components/ui/Toast'
 import { keys } from '../../hooks/queries'
 import { useForm } from '../../hooks/useForm'
 import { t } from '../../i18n'
-import { formatBytes, formatSla } from '../../lib/format'
+import { formatBytes, formatMoney, formatSla } from '../../lib/format'
+import { ministryName, serviceDescription, serviceName } from '../../lib/localized'
 import { CATEGORY, LEVEL, LEVEL_SHORT, PRIORITIES, PRIORITY, options } from '../../lib/labels'
 import { ATTACHMENT_MAX_COUNT, maxLength, required } from '../../lib/validation'
 
@@ -48,7 +49,8 @@ function ServicePicker({ onPick }: { onPick: (service: ServiceCatalogItem) => vo
                   className="flex w-full items-center gap-3 px-4 py-3 text-start hover:bg-slate-50"
                 >
                   <Badge tone="brand">{s.ministryCode}</Badge>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{s.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{serviceName(s)}</span>
+                  {s.fee > 0 && <span className="text-xs text-slate-500 tabular-nums">{formatMoney(s.fee)}</span>}
                   <span className="text-xs text-slate-500">{CATEGORY[s.category]}</span>
                 </button>
               </li>
@@ -100,6 +102,7 @@ export function NewRequestPage() {
   }))
 
   const ineligible = selected?.nativeCitizensOnly && user.nativeStatus !== 'NativeCitizen'
+  const hasFee = (selected?.fee ?? 0) > 0
 
   const onSubmit = form.handleSubmit(async (v) => {
     if (!selected) return
@@ -125,8 +128,11 @@ export function NewRequestPage() {
 
     // From here on the draft exists, so nothing may throw back into the form - a retry
     // would create a second request. Failures are reported and the user lands on the draft.
+    // A fee has to be paid before the request may be submitted; it stays a draft until then
+    // and the detail page offers the payment.
+    const awaitingFee = created.feeOutstanding
     let submitted = false
-    if (intent.current === 'submit' && failed.length === 0) {
+    if (intent.current === 'submit' && failed.length === 0 && !awaitingFee) {
       try {
         await myRequestsApi.submit(created.id)
         submitted = true
@@ -139,6 +145,8 @@ export function NewRequestPage() {
 
     if (failed.length) {
       toast.error(t('citizen.newRequest.savedAsDraft', { ref: created.referenceNumber }), failed.join(' · '))
+    } else if (awaitingFee && intent.current === 'submit') {
+      toast.info(t('fee.draftAwaitingTitle'), t('fee.draftAwaitingBody', { ref: created.referenceNumber, amount: formatMoney(created.feeAmount) }))
     } else if (submitted) {
       toast.success(t('citizen.newRequest.submittedToast'), t('citizen.newRequest.referenceToast', { ref: created.referenceNumber }))
     } else {
@@ -171,7 +179,7 @@ export function NewRequestPage() {
               <CardBody className="space-y-5">
                 {ineligible && (
                   <Alert tone="error" title={t('citizen.newRequest.notAvailableTitle')}>
-                    {t('citizen.newRequest.notAvailableBody', { service: selected.name })}
+                    {t('citizen.newRequest.notAvailableBody', { service: serviceName(selected) })}
                   </Alert>
                 )}
                 <ErrorAlert error={form.formError} />
@@ -252,12 +260,12 @@ export function NewRequestPage() {
               </Button>
               <Button
                 type="submit"
-                icon={Send}
+                icon={hasFee ? CreditCard : Send}
                 disabled={ineligible}
                 loading={form.submitting && pendingIntent === 'submit'}
                 onClick={() => choose('submit')}
               >
-                {t('citizen.submitRequest')}
+                {hasFee ? t('fee.continueToPayment') : t('citizen.submitRequest')}
               </Button>
             </div>
           </form>
@@ -265,9 +273,9 @@ export function NewRequestPage() {
           <aside className="space-y-4">
             <Card className="p-5">
               <p className="text-xs font-medium tracking-wide text-slate-500 uppercase">{t('citizen.service')}</p>
-              <h3 className="mt-1 font-semibold text-slate-900">{selected.name}</h3>
-              <p className="text-sm text-slate-500">{selected.ministryName}</p>
-              {selected.description && <p className="mt-3 text-sm text-slate-600">{selected.description}</p>}
+              <h3 className="mt-1 font-semibold text-slate-900">{serviceName(selected)}</h3>
+              <p className="text-sm text-slate-500">{ministryName(selected)}</p>
+              {serviceDescription(selected) && <p className="mt-3 text-sm text-slate-600">{serviceDescription(selected)}</p>}
               <div className="mt-4 space-y-2 text-sm text-slate-600">
                 <p className="flex items-center gap-2">
                   <Clock className="size-4 text-slate-400" aria-hidden />{' '}
@@ -279,6 +287,10 @@ export function NewRequestPage() {
                     level: selected.requiredApprovalLevel === 'None' ? LEVEL.None : LEVEL_SHORT[selected.requiredApprovalLevel],
                   })}
                 </p>
+                <p className="flex items-center gap-2">
+                  <Receipt className="size-4 text-slate-400" aria-hidden />{' '}
+                  {hasFee ? t('fee.serviceFee', { amount: formatMoney(selected.fee) }) : t('fee.free')}
+                </p>
               </div>
               <Button variant="ghost" size="sm" className="mt-4 -ms-2" onClick={() => {
                   setService(null)
@@ -288,6 +300,11 @@ export function NewRequestPage() {
                 {t('citizen.newRequest.chooseDifferent')}
               </Button>
             </Card>
+            {hasFee && (
+              <Alert tone="warning" title={t('fee.beforeSubmitTitle')}>
+                {t('fee.beforeSubmitBody', { amount: formatMoney(selected.fee) })}
+              </Alert>
+            )}
             <Alert tone="info" title={t('citizen.newRequest.nextTitle')}>
               {t('citizen.newRequest.nextBody')}
             </Alert>

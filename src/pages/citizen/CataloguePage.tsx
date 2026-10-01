@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { BadgeCheck, Building2, Clock, LayoutGrid, Lock, ShieldCheck } from 'lucide-react'
+import { BadgeCheck, Building2, Clock, LayoutGrid, Lock, Receipt, ShieldCheck } from 'lucide-react'
 import { catalogueApi } from '../../api/endpoints'
 import type { ServiceCatalogItem, ServiceCategory } from '../../api/types'
 import { useCurrentUser } from '../../auth/AuthContext'
@@ -13,8 +13,9 @@ import { Select } from '../../components/ui/Form'
 import { PageHeader, Pagination } from '../../components/ui/Layout'
 import { keys, useAllMinistries } from '../../hooks/queries'
 import { opt, useUrlFilters } from '../../hooks/useUrlFilters'
-import { t, tn } from '../../i18n'
-import { formatSla } from '../../lib/format'
+import { getLang, t, tn } from '../../i18n'
+import { formatMoney, formatSla } from '../../lib/format'
+import { ministryName, serviceDescription, serviceName } from '../../lib/localized'
 import { CATEGORIES, CATEGORY, options } from '../../lib/labels'
 
 const FILTERS = ['search', 'ministryCode', 'category'] as const
@@ -30,9 +31,12 @@ function ServiceCard({ service, eligible, canApply }: { service: ServiceCatalogI
           </Badge>
         )}
       </div>
-      <h3 className="mt-3 font-semibold text-slate-900">{service.name}</h3>
-      <p className="mt-1 text-xs text-slate-500">{service.ministryName}</p>
-      {service.description && <p className="mt-3 line-clamp-3 text-sm text-slate-600">{service.description}</p>}
+      {/* dir="auto": a service with no Arabic text falls back to English, which must stay LTR. */}
+      <h3 dir="auto" className="mt-3 font-semibold rtl:text-right text-slate-900">{serviceName(service)}</h3>
+      <p className="mt-1 text-xs text-slate-500">{ministryName(service)}</p>
+      {serviceDescription(service) && (
+        <p dir="auto" className="mt-3 line-clamp-3 text-sm rtl:text-right text-slate-600">{serviceDescription(service)}</p>
+      )}
 
       <dl className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-500">
         <div className="flex items-center gap-1">
@@ -52,6 +56,13 @@ function ServiceCard({ service, eligible, canApply }: { service: ServiceCatalogI
             {service.requiredApprovalLevel === 'L1'
               ? t('citizen.catalogue.singleReview')
               : tn('citizen.catalogue.stageReview', Number(service.requiredApprovalLevel.slice(1)))}
+          </dd>
+        </div>
+        <div className="flex items-center gap-1">
+          <Receipt className="size-3.5" aria-hidden />
+          <dt className="sr-only">{t('fee.title')}</dt>
+          <dd className={service.fee > 0 ? 'font-medium text-slate-700' : undefined}>
+            {service.fee > 0 ? formatMoney(service.fee) : t('fee.free')}
           </dd>
         </div>
       </dl>
@@ -111,7 +122,7 @@ export function CataloguePage() {
           value={filters.ministryCode}
           onChange={(e) => setFilters({ ministryCode: e.target.value })}
           placeholder={t('citizen.catalogue.allMinistries')}
-          options={(ministries.data ?? []).map((m) => ({ value: m.code, label: m.name }))}
+          options={(ministries.data ?? []).map((m) => ({ value: m.code, label: (getLang() === 'ar' && m.nameArabic) || m.name }))}
         />
         <Select
           aria-label={t('citizen.category')}

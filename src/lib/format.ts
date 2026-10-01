@@ -73,3 +73,26 @@ export function initials(name: string) {
     .map((part) => part[0]!.toUpperCase())
     .join('')
 }
+
+const money: Partial<Record<Lang, Intl.NumberFormat>> = {}
+
+/** Fees are in Qatari riyals, always with two decimals. */
+export function formatMoney(amount: number, currency = 'QAR') {
+  const format = (money[getLang()] ??= new Intl.NumberFormat(getLocale(), {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+  }))
+  return format.format(amount)
+}
+
+/** 0.873 → "87%". */
+export function formatPercent(rate?: number | null) {
+  return rate === undefined || rate === null ? '—' : `${formatNumber(Math.round(rate * 1000) / 10)}%`
+}
+
+/** Hours as the most readable unit: 5.5 → "5.5 h", 50 → "2.1 d". */
+export function formatHours(hours?: number | null) {
+  if (hours === undefined || hours === null) return '—'
+  return hours < 48 ? t('format.hoursShort', { value: formatNumber(hours) }) : t('format.daysShort', { value: formatNumber(hours / 24) })
+}

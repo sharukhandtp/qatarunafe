@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Ban, Pencil, Send, X } from 'lucide-react'
+import { Award, Ban, CreditCard, Pencil, Send, X } from 'lucide-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { errorMessage } from '../../api/client'
 import { myRequestsApi } from '../../api/endpoints'
 import type { CitizenRequestDetail, RequestPriority } from '../../api/types'
 import { AttachmentList, FileDropzone, type AttachmentRow } from '../../components/Attachments'
+import { FeeCard, useFeePayment } from '../../components/Fees'
+import { isFeeOutstanding } from '../../lib/fees'
 import { RequestProgress } from '../../components/RequestProgress'
 import { buildSteps } from '../../lib/progress'
 import { PriorityBadge, StatusBadge } from '../../components/ui/Badge'
@@ -19,7 +21,7 @@ import { useToast } from '../../components/ui/Toast'
 import { keys } from '../../hooks/queries'
 import { useForm } from '../../hooks/useForm'
 import { t, tn } from '../../i18n'
-import { formatDateTime, formatRelative } from '../../lib/format'
+import { formatDateTime, formatMoney, formatRelative } from '../../lib/format'
 import { CATEGORY, PRIORITIES, PRIORITY, isTerminal, options } from '../../lib/labels'
 import { ATTACHMENT_MAX_COUNT, maxLength, required } from '../../lib/validation'
 
@@ -87,6 +89,8 @@ export function MyRequestDetailPage() {
   const [removing, setRemoving] = useState<AttachmentRow | null>(null)
   const [busyAttachment, setBusyAttachment] = useState<string | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
+  const [downloadingCertificate, setDownloadingCertificate] = useState(false)
+  const fee = useFeePayment(requestId)
 
   const detail = useQuery({
     queryKey: keys.myRequest(requestId),
@@ -155,6 +159,17 @@ export function MyRequestDetailPage() {
     }
   }
 
+  const downloadCertificate = async (referenceNumber: string) => {
+    setDownloadingCertificate(true)
+    try {
+      await myRequestsApi.downloadCertificate(requestId, referenceNumber)
+    } catch (error) {
+      toast.error(t('certificate.downloadFailed'), errorMessage(error))
+    } finally {
+      setDownloadingCertificate(false)
+    }
+  }
+
   if (detail.isLoading) return <PageLoader />
   if (detail.isError || !detail.data) {
     return (
@@ -167,6 +182,8 @@ export function MyRequestDetailPage() {
   const r = detail.data
   const closed = isTerminal(r.status)
   const canAttach = !closed && r.attachments.length < ATTACHMENT_MAX_COUNT
+  // A service with a fee cannot enter the queue until it is paid; the API refuses the submit.
+  const unpaid = isFeeOutstanding(r)
 
   return (
     <>
@@ -194,8 +211,29 @@ export function MyRequestDetailPage() {
                 {t('citizen.detail.cancelRequest')}
               </Button>
             )}
+            {r.status === 'Completed' && (
+              <Button
+                variant="secondary"
+                icon={Award}
+                loading={downloadingCertificate}
+                onClick={() => downloadCertificate(r.referenceNumber)}
+              >
+                {t('certificate.download')}
+              </Button>
+            )}
+            {unpaid && !closed && (
+              <Button icon={CreditCard} loading={fee.starting} onClick={fee.pay}>
+                {t('fee.payAmount', { amount: formatMoney(r.feeAmount) })}
+              </Button>
+            )}
             {r.isEditable && (
-              <Button icon={Send} onClick={() => setConfirm('submit')}>
+              <Button
+                icon={Send}
+                variant={unpaid ? 'secondary' : 'primary'}
+                disabled={unpaid}
+                title={unpaid ? t('fee.payFirst') : undefined}
+                onClick={() => setConfirm('submit')}
+              >
                 {t(r.status === 'ReturnedForInformation' ? 'citizen.detail.resubmit' : 'citizen.detail.submit')}
               </Button>
             )}
@@ -207,6 +245,11 @@ export function MyRequestDetailPage() {
         <RequestProgress steps={buildSteps(r.status)} />
       </Card>
 
+      {unpaid && !closed && (
+        <Alert tone="warning" title={t('fee.outstandingTitle', { amount: formatMoney(r.feeAmount) })} className="mb-6">
+          {t('fee.outstandingBody')}
+        </Alert>
+      )}
       {r.status === 'ReturnedForInformation' && (
         <Alert tone="warning" title={t('citizen.detail.returnedTitle')} className="mb-6">
           <p className="whitespace-pre-line">{r.decisionNotes}</p>
@@ -221,6 +264,7 @@ export function MyRequestDetailPage() {
       {(r.status === 'Approved' || r.status === 'Completed') && (
         <Alert tone="success" title={t(r.status === 'Completed' ? 'citizen.detail.deliveredTitle' : 'citizen.detail.approvedTitle')} className="mb-6">
           {r.decisionNotes ? <p className="whitespace-pre-line">{r.decisionNotes}</p> : t('citizen.detail.approvedBody')}
+          {r.status === 'Completed' && <p className="mt-2 text-xs">{t('certificate.readyHint')}</p>}
         </Alert>
       )}
 
@@ -276,6 +320,7 @@ export function MyRequestDetailPage() {
           </Card>
         </div>
 
+        <div className="space-y-6">
         <Card className="h-fit">
           <CardHeader title={t('citizen.detail.summary')} />
           <CardBody>
@@ -303,8 +348,11 @@ export function MyRequestDetailPage() {
             />
           </CardBody>
         </Card>
+        {r.feeAmount > 0 && <FeeCard request={r} />}
+        </div>
       </div>
 
+      {fee.dialog}
       {editing && <EditDialog request={r} open onClose={() => setEditing(false)} />}
 
       <ConfirmDialog

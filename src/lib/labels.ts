@@ -143,6 +143,9 @@ export const AUDIT_ACTION = metas<AuditAction>('audit', {
   TokenRefreshed: 'neutral',
   TokenRefreshRejected: 'red',
   PasswordChanged: 'violet',
+  MfaEnabled: 'green',
+  MfaDisabled: 'amber',
+  MfaChallengeIssued: 'neutral',
   AccessDenied: 'red',
   RequestSubmitted: 'blue',
   RequestApproved: 'green',
@@ -152,6 +155,10 @@ export const AUDIT_ACTION = metas<AuditAction>('audit', {
   RequestAssigned: 'blue',
   RequestCancelled: 'neutral',
   RequestCompleted: 'green',
+  PaymentStarted: 'blue',
+  PaymentSucceeded: 'green',
+  PaymentFailed: 'red',
+  PaymentNotificationRejected: 'red',
 })
 
 export const AUDIT_ACTIONS = Object.keys(AUDIT_ACTION) as AuditAction[]

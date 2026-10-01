@@ -16,7 +16,7 @@ import { useToast } from '../../components/ui/Toast'
 import { keys } from '../../hooks/queries'
 import { useForm } from '../../hooks/useForm'
 import { t } from '../../i18n'
-import { formatSla } from '../../lib/format'
+import { formatMoney, formatSla } from '../../lib/format'
 import { CATEGORIES, CATEGORY, EMPLOYEE_LEVELS, LEVEL, LEVEL_SHORT, options } from '../../lib/labels'
 import { code, maxLength, required } from '../../lib/validation'
 import { MinistryFormDialog } from './MinistryForm'
@@ -39,6 +39,9 @@ function ServiceFormDialog({
       code: service?.code ?? '',
       name: service?.name ?? '',
       description: service?.description ?? '',
+      nameArabic: service?.nameArabic ?? '',
+      descriptionArabic: service?.descriptionArabic ?? '',
+      fee: String(service?.fee ?? 0),
       category: service?.category ?? 'NewConnection',
       requiredApprovalLevel: service?.requiredApprovalLevel ?? 'L1',
       nativeCitizensOnly: service?.nativeCitizensOnly ?? false,
@@ -46,7 +49,12 @@ function ServiceFormDialog({
     },
     (v) => {
       const hours = Number(v.slaHours)
+      // Same bounds as the API: 0 to 1,000,000 QAR with at most two decimals.
+      const fee = v.fee.trim()
       return {
+        nameArabic: maxLength(v.nameArabic, 200, t('admin.serviceForm.nameArabic')),
+        descriptionArabic: maxLength(v.descriptionArabic, 1000, t('admin.serviceForm.descriptionArabic')),
+        fee: !/^\d+(\.\d{1,2})?$/.test(fee) || Number(fee) > 1_000_000 ? t('admin.serviceForm.feeInvalid') : undefined,
         code: editing ? undefined : code(v.code, t('admin.field.code')),
         name: required(v.name, t('admin.field.name')) ?? maxLength(v.name, 200, t('admin.field.name')),
         description: maxLength(v.description, 1000, t('admin.field.description')),
@@ -60,6 +68,9 @@ function ServiceFormDialog({
     const body = {
       name: v.name.trim(),
       description: v.description.trim() || undefined,
+      nameArabic: v.nameArabic.trim() || undefined,
+      descriptionArabic: v.descriptionArabic.trim() || undefined,
+      fee: Number(v.fee),
       category: v.category as ServiceCategory,
       requiredApprovalLevel: v.requiredApprovalLevel as EmployeeLevel,
       nativeCitizensOnly: v.nativeCitizensOnly,
@@ -110,6 +121,15 @@ function ServiceFormDialog({
         <Input label={t('admin.field.name')} required {...form.field('name')} />
       </div>
       <Textarea label={t('admin.field.description')} rows={3} maxLength={1000} hint={t('admin.serviceForm.descriptionHint')} {...form.field('description')} />
+      <Input
+        label={t('admin.serviceForm.nameArabic')}
+        dir="rtl"
+        lang="ar"
+        maxLength={200}
+        hint={t('admin.serviceForm.arabicHint')}
+        {...form.field('nameArabic')}
+      />
+      <Textarea label={t('admin.serviceForm.descriptionArabic')} dir="rtl" lang="ar" rows={3} maxLength={1000} {...form.field('descriptionArabic')} />
       <div className="grid gap-4 sm:grid-cols-3">
         <Select label={t('admin.field.category')} options={options(CATEGORIES, (c) => CATEGORY[c])} {...form.field('category')} />
         <Select
@@ -120,6 +140,16 @@ function ServiceFormDialog({
         />
         <Input label={t('admin.serviceForm.slaHours')} type="number" min={1} max={8760} {...form.field('slaHours')} />
       </div>
+      <Input
+        label={t('admin.serviceForm.fee')}
+        type="number"
+        min={0}
+        step="0.01"
+        dir="ltr"
+        containerClassName="sm:max-w-xs"
+        hint={t('admin.serviceForm.feeHint')}
+        {...form.field('fee')}
+      />
       <Checkbox
         label={t('admin.serviceForm.nativeOnly')}
         description={t('admin.serviceForm.nativeOnlyDescription')}
@@ -243,6 +273,7 @@ export function MinistryDetailPage() {
                     <Th className="hidden md:table-cell">{t('admin.col.category')}</Th>
                     <Th>{t('admin.col.signOff')}</Th>
                     <Th className="hidden sm:table-cell">{t('admin.col.sla')}</Th>
+                    <Th className="hidden lg:table-cell">{t('fee.title')}</Th>
                     <Th>{t('admin.col.status')}</Th>
                     <Th className="text-end">
                       <span className="sr-only">{t('admin.col.actions')}</span>
@@ -260,10 +291,18 @@ export function MinistryDetailPage() {
                           )}
                         </p>
                         <p className="font-mono text-xs text-slate-500">{s.code}</p>
+                        {s.nameArabic && (
+                          <p className="text-xs text-slate-500" dir="rtl" lang="ar">
+                            {s.nameArabic}
+                          </p>
+                        )}
                       </Td>
                       <Td className="hidden md:table-cell">{CATEGORY[s.category]}</Td>
                       <Td>{s.requiredApprovalLevel === 'None' ? '—' : LEVEL_SHORT[s.requiredApprovalLevel]}</Td>
                       <Td className="hidden whitespace-nowrap sm:table-cell">{formatSla(s.slaHours)}</Td>
+                      <Td className="hidden whitespace-nowrap tabular-nums lg:table-cell">
+                        {s.fee > 0 ? formatMoney(s.fee) : t('fee.free')}
+                      </Td>
                       <Td>
                         <Badge tone={s.isActive ? 'green' : 'neutral'} dot>
                           {s.isActive ? t('admin.ministry.open') : t('admin.ministry.closed')}

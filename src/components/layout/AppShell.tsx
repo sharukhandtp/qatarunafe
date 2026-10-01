@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import {
+  BarChart3,
   Building2,
   ClipboardList,
   FileText,
@@ -18,11 +19,12 @@ import { Suspense, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import type { UserProfile } from '../../api/types'
 import { useAuth, useCurrentUser } from '../../auth/AuthContext'
-import { isAdmin, isEmployee } from '../../auth/roles'
+import { atLeast, isAdmin, isEmployee } from '../../auth/roles'
 import { t } from '../../i18n'
 import { initials } from '../../lib/format'
 import { LEVEL, USER_TYPE } from '../../lib/labels'
 import { LanguageSwitcher } from '../LanguageSwitcher'
+import { NotificationBell } from '../NotificationBell'
 import { Badge } from '../ui/Badge'
 import { PageLoader } from '../ui/Feedback'
 import { BrandLockup } from './Brand'
@@ -50,7 +52,10 @@ function navFor(user: UserProfile): { title?: string; items: NavItem[] }[] {
       },
       {
         title: t('nav.oversight'),
-        items: [{ to: '/department/queue', label: t('nav.allCases'), icon: Inbox }],
+        items: [
+          { to: '/department/queue', label: t('nav.allCases'), icon: Inbox },
+          { to: '/admin/reports', label: t('nav.reports'), icon: BarChart3 },
+        ],
       },
     ]
   }
@@ -61,6 +66,8 @@ function navFor(user: UserProfile): { title?: string; items: NavItem[] }[] {
         items: [
           { to: '/department', label: t('nav.overview'), icon: LayoutDashboard, end: true },
           { to: '/department/queue', label: t('nav.caseQueue'), icon: Inbox },
+          // Department figures are for supervisors (L2 and up), as the API enforces.
+          ...(atLeast(user, 'L2') ? [{ to: '/reports', label: t('nav.reports'), icon: BarChart3 }] : []),
         ],
       },
       {
@@ -233,6 +240,7 @@ export function AppShell() {
 
         <div className="ms-auto flex items-center gap-2">
           <LanguageSwitcher compact />
+          <NotificationBell />
           <IdentityChip user={user} />
           <button
             type="button"

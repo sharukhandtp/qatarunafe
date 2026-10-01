@@ -19,6 +19,7 @@ import { formatDateTime, initials } from '../../lib/format'
 import { LEVEL, NATIVE_STATUS, USER_TYPE } from '../../lib/labels'
 import { t } from '../../i18n'
 import { required, strongPassword } from '../../lib/validation'
+import { NotificationPreferencesCard, TwoStepCard } from './SecurityCards'
 
 function ChangePasswordCard() {
   const toast = useToast()
@@ -131,9 +132,11 @@ export function ProfilePage() {
           </Card>
 
           <ChangePasswordCard />
+          <TwoStepCard />
         </div>
 
         <div className="space-y-6">
+          <NotificationPreferencesCard />
           <Card>
             <CardHeader
               title={

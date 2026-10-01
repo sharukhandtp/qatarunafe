@@ -3,14 +3,21 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { refreshSession } from '../api/client'
 import { authApi } from '../api/endpoints'
 import { session } from '../api/session'
-import type { LoginRequest, UserProfile } from '../api/types'
+import type { AuthenticationResponse, LoginRequest, MfaChallenge, UserProfile } from '../api/types'
 
 type Status = 'restoring' | 'authenticated' | 'anonymous'
+
+/** A sign-in either finishes, or stops at the second factor. */
+export type LoginResult = { user: UserProfile } | { mfa: MfaChallenge }
 
 interface AuthContextValue {
   status: Status
   user: UserProfile | null
-  login: (credentials: LoginRequest) => Promise<UserProfile>
+  login: (credentials: LoginRequest) => Promise<LoginResult>
+  /** Second step: the code from the authenticator app, against the challenge from login. */
+  completeMfa: (challengeToken: string, code: string) => Promise<UserProfile>
+  /** Adopts tokens obtained some other way (national identity sign-in). */
+  establish: (auth: AuthenticationResponse) => UserProfile
   logout: (options?: { allSessions?: boolean }) => Promise<void>
   /** Re-reads /auth/me, e.g. after an admin action changed the caller's own claims. */
   reloadProfile: () => Promise<void>
@@ -60,11 +67,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const login = useCallback(async (credentials: LoginRequest) => {
-    const auth = await authApi.login(credentials)
+  const establish = useCallback((auth: AuthenticationResponse) => {
     session.store(auth)
     return auth.user
   }, [])
+
+  const login = useCallback(
+    async (credentials: LoginRequest): Promise<LoginResult> => {
+      const response = await authApi.login(credentials)
+      // An account with two-step sign-in gets a challenge and no tokens until the code is sent.
+      if ('mfa' in response && response.mfa) return { mfa: response.mfa }
+      return { user: establish(response as AuthenticationResponse) }
+    },
+    [establish],
+  )
+
+  const completeMfa = useCallback(
+    async (challengeToken: string, code: string) => establish(await authApi.loginMfa(challengeToken, code)),
+    [establish],
+  )
 
   const logout = useCallback(async ({ allSessions = false } = {}) => {
     try {
@@ -81,8 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ status, user, login, logout, reloadProfile }),
-    [status, user, login, logout, reloadProfile],
+    () => ({ status, user, login, completeMfa, establish, logout, reloadProfile }),
+    [status, user, login, completeMfa, establish, logout, reloadProfile],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

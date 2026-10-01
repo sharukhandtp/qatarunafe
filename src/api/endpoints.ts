@@ -5,6 +5,7 @@ import type {
   AuditLogsQuery,
   AuthenticationResponse,
   CatalogueQuery,
+  CertificateVerification,
   ChangePasswordRequest,
   CitizenRequestDetail,
   CitizenRequestSummary,
@@ -12,21 +13,35 @@ import type {
   CreateEmployeeRequest,
   CreateMinistryRequest,
   CreateServiceRequest,
+  DepartmentPerformance,
   DepartmentQueueQuery,
+  DepartmentReportQuery,
   DepartmentRequestDetail,
   DepartmentRequestSummary,
   DepartmentWorkload,
   EmployeeLevel,
   LoginRequest,
+  MfaEnrollment,
   MinistriesQuery,
   Ministry,
   MyRequestsQuery,
+  NationalIdentityConfig,
+  NationalIdentitySignInRequest,
+  Notification,
+  NotificationPreferences,
+  NotificationsQuery,
+  OfficerPerformance,
   PagedResult,
+  Payment,
+  PortalOverview,
   RegisterRequest,
+  ReportRangeQuery,
   RequestAttachment,
   RequestCreatedResponse,
   ServiceCatalogItem,
   ServiceDefinition,
+  SignInResponse,
+  UpdateNotificationPreferences,
   UpdateCitizenRequest,
   UpdateMinistryRequest,
   UpdateServiceRequest,
@@ -42,7 +57,11 @@ const q = (query: object) => query as QueryParams
 
 export const authApi = {
   login: (body: LoginRequest) =>
-    api<AuthenticationResponse>('/auth/login', { method: 'POST', body, anonymous: true }),
+    api<SignInResponse>('/auth/login', { method: 'POST', body, anonymous: true }),
+
+  /** Second step of a sign-in that answered with `mfa`. */
+  loginMfa: (challengeToken: string, code: string) =>
+    api<AuthenticationResponse>('/auth/login/mfa', { method: 'POST', body: { challengeToken, code }, anonymous: true }),
 
   register: (body: RegisterRequest) =>
     api<UserProfile>('/auth/register', { method: 'POST', body, anonymous: true }),
@@ -57,6 +76,26 @@ export const authApi = {
 
   changePassword: (body: ChangePasswordRequest) =>
     api<void>('/auth/change-password', { method: 'POST', body }),
+
+  /**
+   * New authenticator secret. With a challenge token it is the enrolment a sign-in demanded
+   * (anonymous, finished by loginMfa); without one the signed-in user is turning MFA on.
+   */
+  startMfaEnrollment: (challengeToken?: string) =>
+    challengeToken
+      ? api<MfaEnrollment>('/auth/mfa/enrollment', { method: 'POST', body: { challengeToken }, anonymous: true })
+      : api<MfaEnrollment>('/auth/mfa/enrollment', { method: 'POST', body: {} }),
+
+  confirmMfaEnrollment: (code: string) =>
+    api<void>('/auth/mfa/enrollment/confirm', { method: 'POST', body: { code } }),
+
+  disableMfa: (code: string) => api<void>('/auth/mfa/disable', { method: 'POST', body: { code } }),
+
+  /** 404 when the portal has no national identity provider configured. */
+  nationalIdentityConfig: () => api<NationalIdentityConfig>('/auth/national-identity', { anonymous: true }),
+
+  nationalIdentitySignIn: (body: NationalIdentitySignInRequest) =>
+    api<AuthenticationResponse>('/auth/national-identity', { method: 'POST', body, anonymous: true }),
 }
 
 export const catalogueApi = {
@@ -94,6 +133,51 @@ export const myRequestsApi = {
 
   deleteAttachment: (id: string, attachmentId: string) =>
     api<void>(`${myRequest(id)}/attachments/${attachmentId}`, { method: 'DELETE' }),
+
+  /** Opens (or returns the still-open) checkout for the request's fee. */
+  startPayment: (id: string) => api<Payment>(`${myRequest(id)}/payments`, { method: 'POST' }),
+
+  payments: (id: string) => api<Payment[]>(`${myRequest(id)}/payments`),
+
+  downloadCertificate: (id: string, referenceNumber: string) =>
+    downloadFile(`${myRequest(id)}/certificate`, `certificate-${referenceNumber}.pdf`),
+}
+
+export const paymentsApi = {
+  /** Development only: plays the payment provider for the simulated gateway. */
+  simulate: (paymentId: string, succeed: boolean) =>
+    api<Payment>(`/payments/${paymentId}/simulate`, { method: 'POST', body: { succeed } }),
+}
+
+export const certificatesApi = {
+  verify: (code: string) =>
+    api<CertificateVerification>(`/certificates/verify/${encodeURIComponent(code)}`, { anonymous: true }),
+}
+
+export const notificationsApi = {
+  list: (query: NotificationsQuery) =>
+    api<PagedResult<Notification>>('/notifications', { query: q(query) }),
+
+  unreadCount: () => api<{ unread: number }>('/notifications/unread-count'),
+
+  markRead: (id: string) => api<void>(`/notifications/${id}/read`, { method: 'POST' }),
+
+  markAllRead: () => api<{ marked: number }>('/notifications/read-all', { method: 'POST' }),
+
+  preferences: () => api<NotificationPreferences>('/notifications/preferences'),
+
+  updatePreferences: (body: UpdateNotificationPreferences) =>
+    api<NotificationPreferences>('/notifications/preferences', { method: 'PUT', body }),
+}
+
+export const reportsApi = {
+  department: (query: DepartmentReportQuery) =>
+    api<DepartmentPerformance>('/reports/department', { query: q(query) }),
+
+  officers: (query: ReportRangeQuery) =>
+    api<OfficerPerformance[]>('/reports/department/officers', { query: q(query) }),
+
+  overview: (query: ReportRangeQuery) => api<PortalOverview>('/reports/overview', { query: q(query) }),
 }
 
 const caseUrl = (id: string) => `/department/requests/${id}`
@@ -179,6 +263,9 @@ export const adminApi = {
 
   transfer: (userId: string, ministryId: string) =>
     api<void>(`/admin/employees/${userId}/ministry`, { method: 'PUT', body: { ministryId } }),
+
+  /** Clears a lost authenticator; the holder sets it up again at their next sign-in. */
+  resetMfa: (userId: string) => api<void>(`/admin/users/${userId}/mfa/reset`, { method: 'POST' }),
 
   setStatus: (userId: string, accountStatus: AccountStatus, reason?: string) =>
     api<void>(`/admin/users/${userId}/status`, {

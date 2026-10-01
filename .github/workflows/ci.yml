@@ -1,0 +1,30 @@
+# Lint, type-check, build and unit-test on every push and pull request.
+#
+# The browser end-to-end suite (npm run test:e2e) is not run here: it needs the QatarUna API
+# checkout and a SQL Server next to it. Run it locally, or from the API repo with
+# ./test.ps1 -E2E, before merging anything that changes a user journey.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
